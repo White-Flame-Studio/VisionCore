@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "visioncore",
+  "version": "${version}",
+  "name": "VisionCore",
+  "description": "Vision Core implementation for Fabric loader",
+  "authors": [],
+  "contact": {},
+  "license": "GPL-3.0",
+  "icon": "assets/visioncore/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.xnexusacs.visioncore.client.VisionCoreClient"
+    ],
+    "main": [
+      "com.xnexusacs.visioncore.VisionCore"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
