@@ -111,6 +111,7 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
         PlaybackState previous = state.getAndSet(newState);
 
         if (previous != newState) {
+            logger.info("[{}] state: {} -> {}", id, previous, newState);
             dispatchEvent(() -> notifyStateChanged(previous, newState));
         }
     }
