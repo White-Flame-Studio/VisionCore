@@ -19,10 +19,25 @@ public final class OpenAlAudioSink implements AudioSampleSink, AutoCloseable {
     private int sourceId = -1;
     private final Deque<Integer> freeBuffers = new ArrayDeque<>();
     private boolean initialized = false;
+    private volatile float pendingVolume = 1.0f;
 
     OpenAlAudioSink(ExecutorService audioThread, MediaLogger logger) {
         this.audioThread = audioThread;
         this.logger = logger;
+    }
+
+    public void setVolume(float volume) {
+        float clamped = Math.max(0f, volume);
+        this.pendingVolume = clamped;
+        audioThread.execute(() -> {
+            if (initialized) {
+                alSourcef(sourceId, AL_GAIN, clamped);
+            }
+        });
+    }
+
+    public float volume() {
+        return pendingVolume;
     }
 
     @Override
@@ -39,6 +54,7 @@ public final class OpenAlAudioSink implements AudioSampleSink, AutoCloseable {
     private void uploadAndQueue(ByteBuffer pcm, int sampleRate, int channels) {
         if (!initialized) {
             sourceId = alGenSources();
+            alSourcef(sourceId, AL_GAIN, pendingVolume);
             for (int i = 0; i < QUEUED_BUFFERS; i++) {
                 freeBuffers.push(alGenBuffers());
             }

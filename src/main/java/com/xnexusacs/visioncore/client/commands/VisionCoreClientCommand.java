@@ -1,5 +1,6 @@
 package com.xnexusacs.visioncore.client.commands;
 
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.xnexusacs.visioncore.client.VisionCoreClient;
@@ -44,6 +45,12 @@ public final class VisionCoreClientCommand {
                         .then(ClientCommandManager.literal("play-audio-file")
                                 .then(ClientCommandManager.argument("file", StringArgumentType.string())
                                         .executes(VisionCoreClientCommand::executePlayAudioFile)))
+                        .then(ClientCommandManager.literal("volume-audio")
+                                .then(ClientCommandManager.argument("percent", IntegerArgumentType.integer(0, 100))
+                                        .executes(VisionCoreClientCommand::executeVolumeAudio)))
+                        .then(ClientCommandManager.literal("volume-master")
+                                .then(ClientCommandManager.argument("percent", IntegerArgumentType.integer(0, 100))
+                                        .executes(VisionCoreClientCommand::executeVolumeMaster)))
                         .then(ClientCommandManager.literal("stop-audio")
                                 .executes(VisionCoreClientCommand::executeStopAudio))));
     }
@@ -87,6 +94,25 @@ public final class VisionCoreClientCommand {
 
         VisionCoreClient.runNextTick(() -> client.setScreen(null));
         context.getSource().sendFeedback(Text.literal("Video stopped"));
+        return 1;
+    }
+
+    private static int executeVolumeAudio(CommandContext<FabricClientCommandSource> context) {
+        if (currentAudioSink == null) {
+            context.getSource().sendError(Text.literal("No audio is currently playing"));
+            return 0;
+        }
+
+        int percent = IntegerArgumentType.getInteger(context, "percent");
+        currentAudioSink.setVolume(percent / 100f);
+        context.getSource().sendFeedback(Text.literal("Audio volume set to " + percent + "%"));
+        return 1;
+    }
+
+    private static int executeVolumeMaster(CommandContext<FabricClientCommandSource> context) {
+        int percent = IntegerArgumentType.getInteger(context, "percent");
+        VisionCoreClient.audioEngine().setMasterVolume(percent / 100f);
+        context.getSource().sendFeedback(Text.literal("Master volume set to " + percent + "%"));
         return 1;
     }
 
