@@ -23,7 +23,7 @@ public class VlcNativeDiscovery {
         boolean found = new NativeDiscovery().discover();
 
         if (!found) {
-            throw new NativeLibraryException("Couldn't find libVLC in the system. Make sure VLC is installed in the system " + "via the native package manager (no Flatpak/Snap/sandboxed) and that its version is higher than " + "sea 3.x. On Linux, install the 'vlc' package from your distro; on Windows/macOS, " + "install VLC from videolan.org.");
+            throw new NativeLibraryException("Couldn't find libVLC in the system. Make sure VLC is installed in the system " + "via the native package manager (no Flatpak/Snap/sandboxed) and that its version is higher than " + "3.x. On Linux, install the 'vlc' package from your distro; on Windows/macOS, " + "install VLC from videolan.org.");
         }
 
         logger.info("libVLC found and loaded");
