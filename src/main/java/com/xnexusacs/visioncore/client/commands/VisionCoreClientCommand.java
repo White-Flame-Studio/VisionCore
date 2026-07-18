@@ -64,8 +64,7 @@ public final class VisionCoreClientCommand {
             context.getSource().sendError(Text.literal("VisionCore is not initialized"));
             return 0;
         }
-
-        MinecraftClient.getInstance().setScreen(new VideoScreen(playerPool, uri));
+        VisionCoreClient.runNextTick(() -> MinecraftClient.getInstance().setScreen(new VideoScreen(playerPool, uri)));
         context.getSource().sendFeedback(Text.literal("Playing: " + feedbackLabel));
         return 1;
     }

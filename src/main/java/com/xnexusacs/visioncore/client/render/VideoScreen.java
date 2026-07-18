@@ -6,6 +6,7 @@ import com.xnexusacs.visioncore.common.player.PlaybackListener;
 import com.xnexusacs.visioncore.common.player.PlaybackState;
 import com.xnexusacs.visioncore.common.player.PlayerPool;
 import com.xnexusacs.visioncore.common.source.ResolvedMedia;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
@@ -29,6 +30,16 @@ public final class VideoScreen extends Screen {
         @Override
         public void onError(MediaException error) {
             errorMessage = error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName();
+        }
+
+        @Override
+        public void onEndReached() {
+            MinecraftClient client = MinecraftClient.getInstance();
+            client.execute(() -> {
+                if (client.currentScreen == VideoScreen.this) {
+                    client.setScreen(null);
+                }
+            });
         }
     };
 
@@ -82,19 +93,11 @@ public final class VideoScreen extends Screen {
             return;
         }
 
-        int margin = 20;
-        int maxDrawWidth = width - margin * 2;
-        int maxDrawHeight = height - margin * 2;
-
-        float scale = Math.min((float) maxDrawWidth / texWidth, (float) maxDrawHeight / texHeight);
-        int drawWidth = Math.round(texWidth * scale);
-        int drawHeight = Math.round(texHeight * scale);
-        int x = (width - drawWidth) / 2;
-        int y = (height - drawHeight) / 2;
+        float scaleX = (float) width / texWidth;
+        float scaleY = (float) height / texHeight;
 
         context.getMatrices().push();
-        context.getMatrices().translate(x, y, 0);
-        context.getMatrices().scale(scale, scale, 1.0f);
+        context.getMatrices().scale(scaleX, scaleY, 1.0f);
         context.drawTexture(TEXTURE_ID, 0, 0, 0, 0, texWidth, texHeight, texWidth, texHeight);
         context.getMatrices().pop();
 
@@ -103,6 +106,11 @@ public final class VideoScreen extends Screen {
 
     @Override
     public boolean shouldPause() {
+        return false;
+    }
+
+    @Override
+    public boolean shouldCloseOnEsc() {
         return false;
     }
 

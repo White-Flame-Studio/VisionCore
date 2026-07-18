@@ -9,14 +9,19 @@ import com.xnexusacs.visioncore.common.player.PlayerPool;
 import com.xnexusacs.visioncore.common.player.vlc.VlcEngine;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import java.nio.file.Path;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class VisionCoreClient implements ClientModInitializer {
 
     private static MediaCore core;
     private static VlcEngine vlcEngine;
     private static PlayerPool playerPool;
+
+    private static final Queue<Runnable> nextTickTasks = new ConcurrentLinkedQueue<>();
 
     @Override
     public void onInitializeClient() {
@@ -31,6 +36,13 @@ public class VisionCoreClient implements ClientModInitializer {
         playerPool = core.createPlayerPool(vlcEngine::newHandle);
 
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> shutdown());
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            Runnable task;
+            while ((task = nextTickTasks.poll()) != null) {
+                task.run();
+            }
+        });
+
         VisionCoreClientCommand.register();
 
         core.logger().info("Client Initialized");
@@ -56,5 +68,9 @@ public class VisionCoreClient implements ClientModInitializer {
 
     public static PlayerPool playerPool() {
         return playerPool;
+    }
+
+    public static void runNextTick(Runnable task) {
+        nextTickTasks.add(task);
     }
 }

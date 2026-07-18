@@ -18,6 +18,8 @@ public class VlcNativeDiscovery {
             return;
         }
 
+        LinuxVlcPluginPathFix.applyIfNeeded(logger);
+
         boolean found = new NativeDiscovery().discover();
 
         if (!found) {
