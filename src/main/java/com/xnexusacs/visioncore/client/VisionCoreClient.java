@@ -1,8 +1,10 @@
 package com.xnexusacs.visioncore.client;
 
+import com.xnexusacs.visioncore.client.audio.OpenAlAudioEngine;
 import com.xnexusacs.visioncore.client.commands.VisionCoreClientCommand;
 import com.xnexusacs.visioncore.client.log.Slf4jMediaLogger;
 import com.xnexusacs.visioncore.common.MediaCore;
+import com.xnexusacs.visioncore.common.audio.AudioBufferPool;
 import com.xnexusacs.visioncore.common.config.MediaCoreConfig;
 import com.xnexusacs.visioncore.common.frame.FrameBufferPool;
 import com.xnexusacs.visioncore.common.player.PlayerPool;
@@ -18,6 +20,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class VisionCoreClient implements ClientModInitializer {
 
     private static MediaCore core;
+    private static OpenAlAudioEngine audioEngine;
     private static VlcEngine vlcEngine;
     private static PlayerPool playerPool;
 
@@ -32,7 +35,9 @@ public class VisionCoreClient implements ClientModInitializer {
         core = MediaCore.init(config);
 
         FrameBufferPool frameBufferPool = new FrameBufferPool(config.frameBufferPoolMaxPerBucket());
-        vlcEngine = new VlcEngine(core.logger(), frameBufferPool, core.executors().dispatch());
+        AudioBufferPool audioBufferPool = new AudioBufferPool(8);
+        audioEngine = new OpenAlAudioEngine(core.logger());
+        vlcEngine = new VlcEngine(core.logger(), frameBufferPool, audioBufferPool, core.executors().dispatch());
         playerPool = core.createPlayerPool(vlcEngine::newHandle);
 
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> shutdown());
@@ -53,6 +58,10 @@ public class VisionCoreClient implements ClientModInitializer {
             playerPool.shutdownAll();
         }
 
+        if (audioEngine != null) {
+            audioEngine.close();
+        }
+
         if (vlcEngine != null) {
             vlcEngine.close();
         }
@@ -68,6 +77,10 @@ public class VisionCoreClient implements ClientModInitializer {
 
     public static PlayerPool playerPool() {
         return playerPool;
+    }
+
+    public static OpenAlAudioEngine audioEngine() {
+        return audioEngine;
     }
 
     public static void runNextTick(Runnable task) {

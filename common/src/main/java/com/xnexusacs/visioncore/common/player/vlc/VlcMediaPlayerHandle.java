@@ -1,5 +1,9 @@
 package com.xnexusacs.visioncore.common.player.vlc;
 
+import com.xnexusacs.visioncore.common.audio.AudioBuffer;
+import com.xnexusacs.visioncore.common.audio.AudioBufferPool;
+import com.xnexusacs.visioncore.common.audio.AudioSampleSink;
+import com.xnexusacs.visioncore.common.audio.AudioFormat;
 import com.xnexusacs.visioncore.common.concurrency.SequencedDispatcher;
 import com.xnexusacs.visioncore.common.exception.MediaException;
 import com.xnexusacs.visioncore.common.frame.BufferFormat;
@@ -11,9 +15,11 @@ import com.xnexusacs.visioncore.common.player.MediaPlayerHandle;
 import com.xnexusacs.visioncore.common.player.PlaybackListener;
 import com.xnexusacs.visioncore.common.player.PlaybackState;
 import com.xnexusacs.visioncore.common.source.ResolvedMedia;
+import com.sun.jna.Pointer;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.player.base.MediaPlayer;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
+import uk.co.caprica.vlcj.player.base.callback.AudioCallbackAdapter;
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCallbackAdapter;
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback;
@@ -27,20 +33,26 @@ import java.util.concurrent.atomic.AtomicReference;
 
 final class VlcMediaPlayerHandle implements MediaPlayerHandle {
 
+    private static final String AUDIO_FORMAT_STRING = "S16N";
+    private static final AudioFormat AUDIO_FORMAT = new AudioFormat(48_000, 2, 16);
+
     private final String id;
     private final EmbeddedMediaPlayer mediaPlayer;
     private final FrameBufferPool frameBufferPool;
+    private final AudioBufferPool audioBufferPool;
     private final MediaLogger logger;
     private final SequencedDispatcher<String> dispatcher;
     private final Set<PlaybackListener> listeners = new CopyOnWriteArraySet<>();
 
     private final AtomicReference<PlaybackState> state = new AtomicReference<>(PlaybackState.IDLE);
     private final AtomicLong frameToken = new AtomicLong();
-    private volatile FrameSink currentSink;
+    private volatile FrameSink currentVideoSink;
+    private volatile AudioSampleSink currentAudioSink;
 
-    VlcMediaPlayerHandle(String id, MediaPlayerFactory factory, FrameBufferPool frameBufferPool, MediaLogger logger, Executor dispatchExecutor) {
+    VlcMediaPlayerHandle(String id, MediaPlayerFactory factory, FrameBufferPool frameBufferPool, AudioBufferPool audioBufferPool, MediaLogger logger, Executor dispatchExecutor) {
         this.id = id;
         this.frameBufferPool = frameBufferPool;
+        this.audioBufferPool = audioBufferPool;
         this.logger = logger;
         this.dispatcher = new SequencedDispatcher<>(dispatchExecutor);
         this.mediaPlayer = factory.mediaPlayers().newEmbeddedMediaPlayer();
@@ -54,8 +66,19 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
     }
 
     @Override
-    public void play(ResolvedMedia media, FrameSink sink) {
-        this.currentSink = sink;
+    public void play(ResolvedMedia media, FrameSink videoSink) {
+        this.currentVideoSink = videoSink;
+        startPlayback(media);
+    }
+
+    @Override
+    public void play(ResolvedMedia media, AudioSampleSink audioSink) {
+        this.currentAudioSink = audioSink;
+        mediaPlayer.audio().callback(AUDIO_FORMAT_STRING, AUDIO_FORMAT.sampleRate(), AUDIO_FORMAT.channels(), new AudioSampleCallback());
+        startPlayback(media);
+    }
+
+    private void startPlayback(ResolvedMedia media) {
         transitionTo(PlaybackState.LOADING);
         boolean started = mediaPlayer.media().play(media.playableUri().toString());
 
@@ -77,7 +100,8 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
 
     @Override
     public void stop() {
-        currentSink = null;
+        currentVideoSink = null;
+        currentAudioSink = null;
         mediaPlayer.controls().stop();
     }
 
@@ -165,7 +189,7 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
 
         @Override
         public void display(MediaPlayer mediaPlayer, ByteBuffer[] nativeBuffers, uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormat bufferFormat, int displayWidth, int displayHeight) {
-            FrameSink sink = currentSink;
+            FrameSink sink = currentVideoSink;
 
             if (sink == null) {
                 return;
@@ -195,6 +219,32 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
         @Override
         public void unlock(MediaPlayer mediaPlayer) {
             // Ignore.
+        }
+    }
+
+    private final class AudioSampleCallback extends AudioCallbackAdapter {
+        @Override
+        public void play(MediaPlayer mediaPlayer, Pointer samples, int sampleCount, long pts) {
+            AudioSampleSink sink = currentAudioSink;
+
+            if (sink == null) {
+                return;
+            }
+
+            int byteLength = sampleCount * AUDIO_FORMAT.frameSizeBytes();
+            AudioBuffer buffer = audioBufferPool.acquire(byteLength, sampleCount, AUDIO_FORMAT, pts);
+            ByteBuffer dest = buffer.data();
+            ByteBuffer source = samples.getByteBuffer(0, byteLength);
+            dest.put(source);
+            dest.flip();
+
+            dispatcher.submit("audio", () -> {
+                try {
+                    sink.onSamples(buffer);
+                } finally {
+                    buffer.close();
+                }
+            });
         }
     }
 

@@ -1,5 +1,6 @@
 package com.xnexusacs.visioncore.common.player.vlc;
 
+import com.xnexusacs.visioncore.common.audio.AudioBufferPool;
 import com.xnexusacs.visioncore.common.exception.NativeLibraryException;
 import com.xnexusacs.visioncore.common.frame.FrameBufferPool;
 import com.xnexusacs.visioncore.common.log.MediaLogger;
@@ -13,14 +14,16 @@ public final class VlcEngine implements AutoCloseable {
 
     private final MediaLogger logger;
     private final FrameBufferPool frameBufferPool;
+    private final AudioBufferPool audioBufferPool;
     private final Executor dispatchExecutor;
     private final MediaPlayerFactory factory;
     private final AtomicInteger handleIdCounter = new AtomicInteger(1);
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    public VlcEngine(MediaLogger logger, FrameBufferPool frameBufferPool, Executor dispatchExecutor, String... libVlcArgs) {
+    public VlcEngine(MediaLogger logger, FrameBufferPool frameBufferPool, AudioBufferPool audioBufferPool, Executor dispatchExecutor, String... libVlcArgs) {
         this.logger = logger;
         this.frameBufferPool = frameBufferPool;
+        this.audioBufferPool = audioBufferPool;
         this.dispatchExecutor = dispatchExecutor;
         new VlcNativeDiscovery(logger).ensureAvailable();
 
@@ -39,7 +42,7 @@ public final class VlcEngine implements AutoCloseable {
         }
 
         String id = "vlc-player-" + handleIdCounter.getAndIncrement();
-        return new VlcMediaPlayerHandle(id, factory, frameBufferPool, logger, dispatchExecutor);
+        return new VlcMediaPlayerHandle(id, factory, frameBufferPool, audioBufferPool, logger, dispatchExecutor);
     }
 
     @Override

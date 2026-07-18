@@ -1,5 +1,6 @@
 package com.xnexusacs.visioncore.client.render;
 
+import com.xnexusacs.visioncore.client.VisionCoreClient;
 import com.xnexusacs.visioncore.common.exception.MediaException;
 import com.xnexusacs.visioncore.common.player.MediaPlayerHandle;
 import com.xnexusacs.visioncore.common.player.PlaybackListener;
@@ -35,11 +36,7 @@ public final class VideoScreen extends Screen {
         @Override
         public void onEndReached() {
             MinecraftClient client = MinecraftClient.getInstance();
-            client.execute(() -> {
-                if (client.currentScreen == VideoScreen.this) {
-                    client.setScreen(null);
-                }
-            });
+            VisionCoreClient.runNextTick(() -> client.setScreen(null));
         }
     };
 

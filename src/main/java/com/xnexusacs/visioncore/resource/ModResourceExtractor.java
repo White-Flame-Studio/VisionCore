@@ -11,7 +11,7 @@ import java.nio.file.StandardCopyOption;
 
 public final class ModResourceExtractor {
 
-    private static final String RESOURCE_BASE = "assets/visioncore/videos/";
+    private static final String RESOURCE_BASE = "assets/visioncore/media/";
 
     private ModResourceExtractor() { }
 
