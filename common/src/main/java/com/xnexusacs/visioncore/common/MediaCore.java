@@ -15,6 +15,7 @@ import com.xnexusacs.visioncore.common.plugin.MediaPlugin;
 import com.xnexusacs.visioncore.common.plugin.PluginContext;
 import com.xnexusacs.visioncore.common.plugin.PluginLoader;
 import com.xnexusacs.visioncore.common.source.SourceRegistry;
+import com.xnexusacs.visioncore.common.source.providers.*;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -43,6 +44,13 @@ public final class MediaCore {
         this.sources = new SourceRegistry();
         this.urlFixers = new UrlFixerRegistry();
         this.http = new HttpClientProvider(executors.io(), config.httpConnectTimeout());
+
+        this.sources.register(new DirectUriMediaSource());
+        this.sources.register(new GoogleDriveMediaSource(http));
+        this.sources.register(new YtDlpMediaSource(logger));
+        this.sources.register(new TwitchMediaSource(logger));
+        this.sources.register(new SoundCloudMediaSource(logger));
+
         this.memoryCache = new MemoryLruCache<>(config.memoryCacheMaxEntries());
         this.diskCache = new DiskCache(config.cacheDirectory(), config.diskCacheTtl(), logger);
         this.playerDispatcher = new SequencedDispatcher<>(executors.dispatch());

@@ -6,6 +6,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.xnexusacs.visioncore.client.VisionCoreClient;
 import com.xnexusacs.visioncore.client.audio.OpenAlAudioSink;
 import com.xnexusacs.visioncore.client.render.VideoScreen;
+import com.xnexusacs.visioncore.common.MediaCore;
 import com.xnexusacs.visioncore.common.exception.MediaException;
 import com.xnexusacs.visioncore.common.player.MediaPlayerHandle;
 import com.xnexusacs.visioncore.common.player.PlaybackListener;
@@ -59,7 +60,6 @@ public final class VisionCoreClientCommand {
         String rawUrl = StringArgumentType.getString(context, "url");
 
         URI uri;
-
         try {
             uri = URI.create(rawUrl);
         } catch (IllegalArgumentException e) {
@@ -67,7 +67,31 @@ public final class VisionCoreClientCommand {
             return 0;
         }
 
-        return openVideoScreen(context, uri, rawUrl);
+        MediaCore core = VisionCoreClient.core();
+        PlayerPool playerPool = VisionCoreClient.playerPool();
+        if (core == null || playerPool == null) {
+            context.getSource().sendError(Text.literal("VisionCore is not initialized"));
+            return 0;
+        }
+
+        context.getSource().sendFeedback(Text.literal("Resolving: " + rawUrl + "..."));
+        URI finalUri = uri;
+        core.executors().io().execute(() -> {
+            ResolvedMedia resolved;
+            try {
+                resolved = core.sources().resolve(finalUri);
+            } catch (RuntimeException e) {
+                VisionCoreClient.runNextTick(() -> context.getSource().sendError(Text.literal("Couldn't resolve '" + rawUrl + "': " + e.getMessage())));
+                return;
+            }
+            String label = resolved.title() != null ? resolved.title() : rawUrl;
+            VisionCoreClient.runNextTick(() -> {
+                MinecraftClient.getInstance().setScreen(new VideoScreen(playerPool, resolved.playableUri()));
+                context.getSource().sendFeedback(Text.literal("Playing: " + label));
+            });
+        });
+
+        return 1;
     }
 
     private static int executePlayFile(CommandContext<FabricClientCommandSource> context) {
@@ -127,7 +151,29 @@ public final class VisionCoreClientCommand {
             return 0;
         }
 
-        return playAudio(context, uri, rawUrl);
+        MediaCore core = VisionCoreClient.core();
+        PlayerPool playerPool = VisionCoreClient.playerPool();
+        if (core == null || playerPool == null) {
+            context.getSource().sendError(Text.literal("VisionCore is not initialized"));
+            return 0;
+        }
+
+        context.getSource().sendFeedback(Text.literal("Resolving: " + rawUrl + "..."));
+        URI finalUri = uri;
+        core.executors().io().execute(() -> {
+            ResolvedMedia resolved;
+            try {
+                resolved = core.sources().resolve(finalUri);
+            } catch (RuntimeException e) {
+                VisionCoreClient.runNextTick(() -> context.getSource().sendError(Text.literal("Couldn't resolve '" + rawUrl + "': " + e.getMessage())));
+                return;
+            }
+            String label = resolved.title() != null ? resolved.title() : rawUrl;
+            ResolvedMedia finalResolved = resolved;
+            VisionCoreClient.runNextTick(() -> playAudio(context, finalResolved, label));
+        });
+
+        return 1;
     }
 
     private static int executePlayAudioFile(CommandContext<FabricClientCommandSource> context) {
@@ -141,7 +187,7 @@ public final class VisionCoreClientCommand {
             return 0;
         }
 
-        return playAudio(context, uri, fileName);
+        return playAudio(context, ResolvedMedia.of(uri), fileName);
     }
 
     private static int executeStopAudio(CommandContext<FabricClientCommandSource> context) {
@@ -155,7 +201,7 @@ public final class VisionCoreClientCommand {
         return 1;
     }
 
-    private static synchronized int playAudio(CommandContext<FabricClientCommandSource> context, URI uri, String feedbackLabel) {
+    private static synchronized int playAudio(CommandContext<FabricClientCommandSource> context, ResolvedMedia media, String feedbackLabel) {
         PlayerPool playerPool = VisionCoreClient.playerPool();
         if (playerPool == null) {
             context.getSource().sendError(Text.literal("VisionCore is not initialized"));
@@ -184,7 +230,7 @@ public final class VisionCoreClientCommand {
         currentAudioSink = sink;
         currentAudioListener = listener;
 
-        handle.play(ResolvedMedia.of(uri), sink);
+        handle.play(media, sink);
 
         context.getSource().sendFeedback(Text.literal("Playing audio: " + feedbackLabel));
         return 1;
