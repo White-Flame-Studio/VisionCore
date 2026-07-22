@@ -70,11 +70,13 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
     @Override
     public void play(ResolvedMedia media, FrameSink videoSink) {
         this.currentVideoSink = videoSink;
+        this.currentAudioSink = null;
         startPlayback(media);
     }
 
     @Override
     public void play(ResolvedMedia media, AudioSampleSink audioSink) {
+        this.currentVideoSink = null;
         this.currentAudioSink = audioSink;
         ensureAudioCallbackRegistered();
         startPlayback(media);
@@ -259,13 +261,11 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
             dest.put(source);
             dest.flip();
 
-            dispatcher.submit("audio", () -> {
-                try {
-                    sink.onSamples(buffer);
-                } finally {
-                    buffer.close();
-                }
-            });
+            try {
+                sink.onSamples(buffer);
+            } finally {
+                buffer.close();
+            }
         }
     }
 
