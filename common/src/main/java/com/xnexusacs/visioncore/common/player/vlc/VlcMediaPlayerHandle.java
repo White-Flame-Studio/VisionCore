@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -46,6 +47,7 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
 
     private final AtomicReference<PlaybackState> state = new AtomicReference<>(PlaybackState.IDLE);
     private final AtomicLong frameToken = new AtomicLong();
+    private final AtomicBoolean audioCallbackRegistered = new AtomicBoolean(false);
     private volatile FrameSink currentVideoSink;
     private volatile AudioSampleSink currentAudioSink;
 
@@ -74,8 +76,22 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
     @Override
     public void play(ResolvedMedia media, AudioSampleSink audioSink) {
         this.currentAudioSink = audioSink;
-        mediaPlayer.audio().callback(AUDIO_FORMAT_STRING, AUDIO_FORMAT.sampleRate(), AUDIO_FORMAT.channels(), new AudioSampleCallback());
+        ensureAudioCallbackRegistered();
         startPlayback(media);
+    }
+
+    @Override
+    public void play(ResolvedMedia media, FrameSink videoSink, AudioSampleSink audioSink) {
+        this.currentVideoSink = videoSink;
+        this.currentAudioSink = audioSink;
+        ensureAudioCallbackRegistered();
+        startPlayback(media);
+    }
+
+    private void ensureAudioCallbackRegistered() {
+        if (audioCallbackRegistered.compareAndSet(false, true)) {
+            mediaPlayer.audio().callback(AUDIO_FORMAT_STRING, AUDIO_FORMAT.sampleRate(), AUDIO_FORMAT.channels(), new AudioSampleCallback());
+        }
     }
 
     private void startPlayback(ResolvedMedia media) {
@@ -113,6 +129,11 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
     @Override
     public PlaybackState state() {
         return state.get();
+    }
+
+    @Override
+    public long timeMillis() {
+        return mediaPlayer.status().time();
     }
 
     @Override

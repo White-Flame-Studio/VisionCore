@@ -12,6 +12,8 @@ public interface MediaPlayerHandle {
 
     void play(ResolvedMedia media, AudioSampleSink audioSink);
 
+    void play(ResolvedMedia media, FrameSink videoSink, AudioSampleSink audioSink);
+
     void pause();
 
     void resume();
@@ -19,6 +21,8 @@ public interface MediaPlayerHandle {
     void stop();
 
     void seek(long millis);
+
+    long timeMillis();
 
     PlaybackState state();
 
