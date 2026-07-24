@@ -50,6 +50,7 @@ public final class MediaCore {
         this.sources.register(new YtDlpMediaSource(logger));
         this.sources.register(new TwitchMediaSource(logger));
         this.sources.register(new SoundCloudMediaSource(logger));
+        this.sources.register(new SpotifyMediaSource(http, logger));
 
         this.memoryCache = new MemoryLruCache<>(config.memoryCacheMaxEntries());
         this.diskCache = new DiskCache(config.cacheDirectory(), config.diskCacheTtl(), logger);
