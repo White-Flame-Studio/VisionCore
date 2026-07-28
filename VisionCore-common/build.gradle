@@ -1,0 +1,57 @@
+plugins {
+    id 'java'
+    id 'maven-publish'
+    id 'com.gradleup.shadow' version '9.0.0'
+}
+
+group = 'studio.whiteflame'
+version = '0.0.1'
+
+repositories {
+    mavenCentral()
+}
+
+base {
+    archivesName = 'VisionCore-common'
+}
+
+dependencies {
+    implementation 'uk.co.caprica:vlcj:4.10.1'
+    implementation 'uk.co.caprica:vlcj-natives:4.7.0'
+    testImplementation platform('org.junit:junit-bom:6.0.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+shadowJar {
+    archiveClassifier.set("all")
+    exclude 'META-INF/LICENSE*', 'META-INF/NOTICE*', 'META-INF/DEPENDENCIES', 'META-INF/AL2.0', 'META-INF/LGPL2.1'
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+}
+
+build {
+    dependsOn shadowJar
+}
+
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            artifactId = 'VisionCore-common'
+            from components.java
+        }
+    }
+
+    repositories {
+
+    }
+}

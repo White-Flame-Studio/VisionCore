@@ -20,8 +20,8 @@ repositories {
 }
 
 dependencies {
-    implementation project(":common")
-    shadowCommon project(":common")
+    implementation project(":VisionCore-common")
+    shadowCommon project(":VisionCore-common")
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
