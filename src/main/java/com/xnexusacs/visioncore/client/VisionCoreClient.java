@@ -14,6 +14,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -30,14 +31,14 @@ public class VisionCoreClient implements ClientModInitializer {
     public void onInitializeClient() {
         Path cacheDir = FabricLoader.getInstance().getGameDir().resolve("visioncore-cache");
 
-        MediaCoreConfig config = MediaCoreConfig.builder(cacheDir).logger(new Slf4jMediaLogger("VisionCore")).build();
+        MediaCoreConfig config = MediaCoreConfig.builder(cacheDir).logger(new Slf4jMediaLogger("VisionCore")).statsSampleInterval(Duration.ofSeconds(10)).build();
 
         core = MediaCore.init(config);
 
         FrameBufferPool frameBufferPool = new FrameBufferPool(config.frameBufferPoolMaxPerBucket());
         AudioBufferPool audioBufferPool = new AudioBufferPool(8);
         audioEngine = new OpenAlAudioEngine(core.logger());
-        vlcEngine = new VlcEngine(core.logger(), frameBufferPool, audioBufferPool, core.executors().dispatch());
+        vlcEngine = new VlcEngine(core.logger(), frameBufferPool, audioBufferPool, core.events(), core.executors().dispatch(), core.config().statsSampleInterval());
         playerPool = core.createPlayerPool(vlcEngine::newHandle);
 
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> shutdown());
