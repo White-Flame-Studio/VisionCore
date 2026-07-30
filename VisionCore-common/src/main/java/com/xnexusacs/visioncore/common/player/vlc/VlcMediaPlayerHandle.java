@@ -5,6 +5,13 @@ import com.xnexusacs.visioncore.common.audio.AudioBufferPool;
 import com.xnexusacs.visioncore.common.audio.AudioSampleSink;
 import com.xnexusacs.visioncore.common.audio.AudioFormat;
 import com.xnexusacs.visioncore.common.concurrency.SequencedDispatcher;
+import com.xnexusacs.visioncore.common.event.EventBus;
+import com.xnexusacs.visioncore.common.event.events.BufferingEvent;
+import com.xnexusacs.visioncore.common.event.events.PlaybackEndedEvent;
+import com.xnexusacs.visioncore.common.event.events.PlaybackErrorEvent;
+import com.xnexusacs.visioncore.common.event.events.PlaybackStateChangedEvent;
+import com.xnexusacs.visioncore.common.event.events.PlaybackStats;
+import com.xnexusacs.visioncore.common.event.events.PlaybackStatsEvent;
 import com.xnexusacs.visioncore.common.exception.MediaException;
 import com.xnexusacs.visioncore.common.frame.BufferFormat;
 import com.xnexusacs.visioncore.common.frame.FrameBuffer;
@@ -17,6 +24,7 @@ import com.xnexusacs.visioncore.common.player.PlaybackState;
 import com.xnexusacs.visioncore.common.source.ResolvedMedia;
 import com.sun.jna.Pointer;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
+import uk.co.caprica.vlcj.media.MediaStatistics;
 import uk.co.caprica.vlcj.player.base.MediaPlayer;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
 import uk.co.caprica.vlcj.player.base.callback.AudioCallbackAdapter;
@@ -25,9 +33,13 @@ import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCall
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback;
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -44,19 +56,28 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
     private final MediaLogger logger;
     private final SequencedDispatcher<String> dispatcher;
     private final Set<PlaybackListener> listeners = new CopyOnWriteArraySet<>();
+    private final EventBus events;
+    private final ScheduledExecutorService statsScheduler;
+    private final Duration statsSampleInterval;
 
     private final AtomicReference<PlaybackState> state = new AtomicReference<>(PlaybackState.IDLE);
     private final AtomicLong frameToken = new AtomicLong();
     private final AtomicBoolean audioCallbackRegistered = new AtomicBoolean(false);
+    private final AtomicLong deliveredVideoFrames = new AtomicLong();
+    private final AtomicLong deliveredAudioBuffers = new AtomicLong();
     private volatile FrameSink currentVideoSink;
     private volatile AudioSampleSink currentAudioSink;
+    private volatile ScheduledFuture<?> statsTask;
 
-    VlcMediaPlayerHandle(String id, MediaPlayerFactory factory, FrameBufferPool frameBufferPool, AudioBufferPool audioBufferPool, MediaLogger logger, Executor dispatchExecutor) {
+    VlcMediaPlayerHandle(String id, MediaPlayerFactory factory, FrameBufferPool frameBufferPool, AudioBufferPool audioBufferPool, MediaLogger logger, Executor dispatchExecutor, EventBus events, ScheduledExecutorService statsScheduler, Duration statsSampleInterval) {
         this.id = id;
         this.frameBufferPool = frameBufferPool;
         this.audioBufferPool = audioBufferPool;
         this.logger = logger;
         this.dispatcher = new SequencedDispatcher<>(dispatchExecutor);
+        this.events = events;
+        this.statsScheduler = statsScheduler;
+        this.statsSampleInterval = statsSampleInterval;
         this.mediaPlayer = factory.mediaPlayers().newEmbeddedMediaPlayer();
         this.mediaPlayer.videoSurface().set(factory.videoSurfaces().newVideoSurface(new FormatCallback(), new FrameRenderCallback(), true));
         this.mediaPlayer.events().addMediaPlayerEventListener(new StateListener());
@@ -120,6 +141,7 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
     public void stop() {
         currentVideoSink = null;
         currentAudioSink = null;
+        cancelStatsTask();
         mediaPlayer.controls().stop();
     }
 
@@ -150,6 +172,7 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
 
     @Override
     public void release() {
+        cancelStatsTask();
         dispatcher.shutdown();
         mediaPlayer.release();
     }
@@ -160,6 +183,12 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
         if (previous != newState) {
             logger.info("[{}] state: {} -> {}", id, previous, newState);
             dispatchEvent(() -> notifyStateChanged(previous, newState));
+
+            if (newState == PlaybackState.PLAYING) {
+                ensureStatsTaskRunning();
+            } else if (newState == PlaybackState.STOPPED || newState == PlaybackState.ERROR) {
+                cancelStatsTask();
+            }
         }
     }
 
@@ -168,6 +197,8 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
     }
 
     private void notifyStateChanged(PlaybackState previous, PlaybackState current) {
+        events.post(new PlaybackStateChangedEvent(id, previous, current));
+
         for (PlaybackListener listener : listeners) {
             try {
                 listener.onStateChanged(previous, current);
@@ -178,6 +209,8 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
     }
 
     private void notifyError(MediaException error) {
+        events.post(new PlaybackErrorEvent(id, error));
+
         for (PlaybackListener listener : listeners) {
             try {
                 listener.onError(error);
@@ -188,12 +221,54 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
     }
 
     private void notifyEndReached() {
+        events.post(new PlaybackEndedEvent(id));
+
         for (PlaybackListener listener : listeners) {
             try {
                 listener.onEndReached();
             } catch (RuntimeException e) {
                 logger.error("A PlaybackListener from '" + id + "' threw an exception on onEndReached", e);
             }
+        }
+    }
+
+    private void ensureStatsTaskRunning() {
+        if (statsScheduler == null) {
+            return;
+        }
+
+        ScheduledFuture<?> existing = statsTask;
+
+        if (existing != null && !existing.isDone()) {
+            return;
+        }
+
+        long intervalMillis = statsSampleInterval.toMillis();
+        statsTask = statsScheduler.scheduleAtFixedRate(this::sampleAndPublishStats, intervalMillis, intervalMillis, TimeUnit.MILLISECONDS);
+    }
+
+    private void cancelStatsTask() {
+        ScheduledFuture<?> task = statsTask;
+
+        if (task != null) {
+            task.cancel(false);
+            statsTask = null;
+        }
+    }
+
+    private void sampleAndPublishStats() {
+        try {
+            MediaStatistics stats = mediaPlayer.media().info().statistics();
+
+            if (stats == null) {
+                return;
+            }
+
+            PlaybackStats snapshot = new PlaybackStats(stats.inputBitrate(), stats.inputBytesRead(), stats.demuxBitrate(), stats.demuxBytesRead(), stats.demuxCorrupted(), stats.demuxDiscontinuity(), stats.decodedVideo(), stats.decodedAudio(), stats.picturesDisplayed(), stats.picturesLost(), stats.audioBuffersPlayed(), stats.audioBuffersLost(), deliveredVideoFrames.get(), deliveredAudioBuffers.get());
+
+            events.post(new PlaybackStatsEvent(id, snapshot));
+        } catch (RuntimeException e) {
+            logger.warn("Couldn't sample playback statistics for '" + id + "'", e);
         }
     }
 
@@ -233,6 +308,7 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
             dispatcher.submitLatest("frame", token, () -> {
                 try {
                     sink.onFrame(frame);
+                    deliveredVideoFrames.incrementAndGet();
                 } finally {
                     frame.close();
                 }
@@ -263,6 +339,7 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
 
             try {
                 sink.onSamples(buffer);
+                deliveredAudioBuffers.incrementAndGet();
             } finally {
                 buffer.close();
             }
@@ -299,6 +376,8 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
 
         @Override
         public void buffering(MediaPlayer mediaPlayer, float newCache) {
+            dispatchEvent(() -> events.post(new BufferingEvent(id, Math.round(newCache))));
+
             if (state.get() != PlaybackState.PLAYING) {
                 transitionTo(PlaybackState.BUFFERING);
             }

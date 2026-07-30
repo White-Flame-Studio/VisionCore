@@ -2,7 +2,6 @@ package com.xnexusacs.visioncore.common.event;
 
 import com.xnexusacs.visioncore.common.event.events.MediaEvent;
 import com.xnexusacs.visioncore.common.log.MediaLogger;
-
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

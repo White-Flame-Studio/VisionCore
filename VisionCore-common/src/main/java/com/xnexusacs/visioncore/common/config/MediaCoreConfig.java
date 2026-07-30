@@ -17,6 +17,7 @@ public final class MediaCoreConfig {
     private final int frameBufferPoolMaxPerBucket;
     private final MediaLogger logger;
     private final FfmpegOptions ffmpeg;
+    private final Duration statsSampleInterval;
 
     private MediaCoreConfig(Builder builder) {
         this.cacheDirectory = builder.cacheDirectory;
@@ -29,6 +30,7 @@ public final class MediaCoreConfig {
         this.frameBufferPoolMaxPerBucket = builder.frameBufferPoolMaxPerBucket;
         this.logger = builder.logger;
         this.ffmpeg = builder.ffmpeg;
+        this.statsSampleInterval = builder.statsSampleInterval;
     }
 
     public Path cacheDirectory() {
@@ -71,6 +73,10 @@ public final class MediaCoreConfig {
         return ffmpeg;
     }
 
+    public Duration statsSampleInterval() {
+        return statsSampleInterval;
+    }
+
     public static Builder builder(Path cacheDirectory) {
         return new Builder(cacheDirectory);
     }
@@ -86,6 +92,7 @@ public final class MediaCoreConfig {
         private int frameBufferPoolMaxPerBucket = 4;
         private MediaLogger logger = new ConsoleMediaLogger();
         private FfmpegOptions ffmpeg = FfmpegOptions.disabled();
+        private Duration statsSampleInterval = Duration.ofSeconds(2);
 
         private Builder(Path cacheDirectory) {
             this.cacheDirectory = cacheDirectory;
@@ -133,6 +140,11 @@ public final class MediaCoreConfig {
 
         public Builder ffmpeg(FfmpegOptions ffmpeg) {
             this.ffmpeg = ffmpeg;
+            return this;
+        }
+
+        public Builder statsSampleInterval(Duration interval) {
+            this.statsSampleInterval = interval;
             return this;
         }
 
