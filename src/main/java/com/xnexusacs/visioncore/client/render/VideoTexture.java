@@ -7,7 +7,6 @@ import net.minecraft.resource.ResourceManager;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.system.MemoryUtil;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 
 public final class VideoTexture extends AbstractTexture {
@@ -35,7 +34,7 @@ public final class VideoTexture extends AbstractTexture {
     }
 
     @Override
-    public void load(ResourceManager manager) throws IOException {
+    public void load(ResourceManager manager) {
         // Ignore.
     }
 
