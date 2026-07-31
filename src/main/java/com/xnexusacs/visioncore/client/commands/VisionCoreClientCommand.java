@@ -20,6 +20,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.text.Text;
 import java.io.UncheckedIOException;
 import java.net.URI;
+import java.nio.file.Path;
 
 public final class VisionCoreClientCommand {
 
@@ -105,7 +106,23 @@ public final class VisionCoreClientCommand {
             return 0;
         }
 
-        return openVideoScreen(context, uri, fileName);
+        Path subtitleFile = tryExtractSubtitleFile(fileName);
+        return openVideoScreen(context, uri, fileName, subtitleFile);
+    }
+
+    private static Path tryExtractSubtitleFile(String videoFileName) {
+        int dot = videoFileName.lastIndexOf('.');
+        String baseName = dot >= 0 ? videoFileName.substring(0, dot) : videoFileName;
+
+        for (String extension : new String[] {".srt", ".vtt"}) {
+            try {
+                return Path.of(ModResourceExtractor.extractToCache(baseName + extension));
+            } catch (IllegalArgumentException | UncheckedIOException ignored) {
+                // Ignore.
+            }
+        }
+
+        return null;
     }
 
     private static int executeStopVideo(CommandContext<FabricClientCommandSource> context) {
@@ -264,7 +281,7 @@ public final class VisionCoreClientCommand {
         finishAudio(handle, currentAudioSink, currentAudioListener);
     }
 
-    private static int openVideoScreen(CommandContext<FabricClientCommandSource> context, URI uri, String feedbackLabel) {
+    private static int openVideoScreen(CommandContext<FabricClientCommandSource> context, URI uri, String feedbackLabel, Path subtitleFile) {
         PlayerPool playerPool = VisionCoreClient.playerPool();
 
         if (playerPool == null) {
@@ -272,8 +289,8 @@ public final class VisionCoreClientCommand {
             return 0;
         }
 
-        VisionCoreClient.runNextTick(() -> MinecraftClient.getInstance().setScreen(new VideoScreen(playerPool, uri)));
-        context.getSource().sendFeedback(Text.literal("Playing: " + feedbackLabel));
+        VisionCoreClient.runNextTick(() -> MinecraftClient.getInstance().setScreen(new VideoScreen(playerPool, uri, subtitleFile)));
+        context.getSource().sendFeedback(Text.literal("Playing: " + feedbackLabel + (subtitleFile != null ? " (with subtitles)" : "")));
         return 1;
     }
 }

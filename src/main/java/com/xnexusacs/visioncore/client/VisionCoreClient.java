@@ -9,6 +9,7 @@ import com.xnexusacs.visioncore.common.config.MediaCoreConfig;
 import com.xnexusacs.visioncore.common.frame.FrameBufferPool;
 import com.xnexusacs.visioncore.common.player.PlayerPool;
 import com.xnexusacs.visioncore.common.player.vlc.VlcEngine;
+import com.xnexusacs.visioncore.common.subtitles.SubtitleEngine;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -24,6 +25,7 @@ public class VisionCoreClient implements ClientModInitializer {
     private static OpenAlAudioEngine audioEngine;
     private static VlcEngine vlcEngine;
     private static PlayerPool playerPool;
+    private static SubtitleEngine subtitleEngine;
 
     private static final Queue<Runnable> nextTickTasks = new ConcurrentLinkedQueue<>();
 
@@ -40,6 +42,7 @@ public class VisionCoreClient implements ClientModInitializer {
         audioEngine = new OpenAlAudioEngine(core.logger());
         vlcEngine = new VlcEngine(core.logger(), frameBufferPool, audioBufferPool, core.events(), core.executors().dispatch(), core.config().statsSampleInterval());
         playerPool = core.createPlayerPool(vlcEngine::newHandle);
+        subtitleEngine = new SubtitleEngine(core.logger());
 
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> shutdown());
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -82,6 +85,10 @@ public class VisionCoreClient implements ClientModInitializer {
 
     public static OpenAlAudioEngine audioEngine() {
         return audioEngine;
+    }
+
+    public static SubtitleEngine subtitleEngine() {
+        return subtitleEngine;
     }
 
     public static void runNextTick(Runnable task) {
