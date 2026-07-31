@@ -49,6 +49,8 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
     private static final String AUDIO_FORMAT_STRING = "S16N";
     private static final AudioFormat AUDIO_FORMAT = new AudioFormat(48_000, 2, 16);
 
+    private static final String[] DISABLE_LIBVLC_SUBTITLES_OPTIONS = {":no-sub-autodetect-file", ":sub-track=-1"};
+
     private final String id;
     private final EmbeddedMediaPlayer mediaPlayer;
     private final FrameBufferPool frameBufferPool;
@@ -119,7 +121,7 @@ final class VlcMediaPlayerHandle implements MediaPlayerHandle {
 
     private void startPlayback(ResolvedMedia media) {
         transitionTo(PlaybackState.LOADING);
-        boolean started = mediaPlayer.media().play(media.playableUri().toString());
+        boolean started = mediaPlayer.media().play(media.playableUri().toString(), DISABLE_LIBVLC_SUBTITLES_OPTIONS);
 
         if (!started) {
             transitionTo(PlaybackState.ERROR);
