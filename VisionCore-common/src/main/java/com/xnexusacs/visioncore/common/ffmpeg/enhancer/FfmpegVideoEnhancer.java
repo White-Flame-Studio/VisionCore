@@ -1,5 +1,6 @@
-package com.xnexusacs.visioncore.common.ffmpeg;
+package com.xnexusacs.visioncore.common.ffmpeg.enhancer;
 
+import com.xnexusacs.visioncore.common.ffmpeg.FfmpegPipeline;
 import com.xnexusacs.visioncore.common.frame.BufferFormat;
 import com.xnexusacs.visioncore.common.frame.FrameBuffer;
 import com.xnexusacs.visioncore.common.frame.FrameBufferPool;

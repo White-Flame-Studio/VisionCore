@@ -1,9 +1,10 @@
-package com.xnexusacs.visioncore.common.ffmpeg;
+package com.xnexusacs.visioncore.common.ffmpeg.enhancer;
 
 import com.xnexusacs.visioncore.common.audio.AudioBuffer;
 import com.xnexusacs.visioncore.common.audio.AudioBufferPool;
 import com.xnexusacs.visioncore.common.audio.AudioFormat;
 import com.xnexusacs.visioncore.common.audio.AudioSampleSink;
+import com.xnexusacs.visioncore.common.ffmpeg.FfmpegPipeline;
 import com.xnexusacs.visioncore.common.log.MediaLogger;
 import java.io.IOException;
 import java.io.InputStream;

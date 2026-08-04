@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-final class FfmpegPipeline implements AutoCloseable {
+public final class FfmpegPipeline implements AutoCloseable {
 
     private final Process process;
     private final OutputStream stdin;
@@ -27,7 +27,7 @@ final class FfmpegPipeline implements AutoCloseable {
         this.stderrDrain.start();
     }
 
-    static FfmpegPipeline start(String executable, List<String> args, String tag, MediaLogger logger) throws IOException {
+    public static FfmpegPipeline start(String executable, List<String> args, String tag, MediaLogger logger) throws IOException {
         List<String> command = new ArrayList<>(args.size() + 1);
         command.add(executable);
         command.addAll(args);
@@ -35,11 +35,11 @@ final class FfmpegPipeline implements AutoCloseable {
         return new FfmpegPipeline(process, tag, logger);
     }
 
-    OutputStream stdin() {
+    public OutputStream stdin() {
         return stdin;
     }
 
-    InputStream stdout() {
+    public InputStream stdout() {
         return stdout;
     }
 

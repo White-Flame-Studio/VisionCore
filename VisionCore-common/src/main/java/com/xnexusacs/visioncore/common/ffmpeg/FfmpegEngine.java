@@ -3,6 +3,9 @@ package com.xnexusacs.visioncore.common.ffmpeg;
 import com.xnexusacs.visioncore.common.audio.AudioBufferPool;
 import com.xnexusacs.visioncore.common.audio.AudioSampleSink;
 import com.xnexusacs.visioncore.common.config.FfmpegOptions;
+import com.xnexusacs.visioncore.common.ffmpeg.effects.AudioEffect;
+import com.xnexusacs.visioncore.common.ffmpeg.enhancer.FfmpegAudioEnhancer;
+import com.xnexusacs.visioncore.common.ffmpeg.enhancer.FfmpegVideoEnhancer;
 import com.xnexusacs.visioncore.common.frame.FrameBufferPool;
 import com.xnexusacs.visioncore.common.frame.FrameSink;
 import com.xnexusacs.visioncore.common.log.MediaLogger;
@@ -57,5 +60,13 @@ public final class FfmpegEngine {
         }
 
         return new FfmpegAudioEnhancer(delegate, audioBufferPool, options.executable(), filterGraph, logger);
+    }
+
+    public AudioSampleSink wrapAudioSink(AudioSampleSink delegate, AudioEffect effect) {
+        if (effect == null) {
+            throw new IllegalArgumentException("effect can't be null");
+        }
+
+        return wrapAudioSink(delegate, effect.filterGraph());
     }
 }
